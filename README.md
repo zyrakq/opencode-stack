@@ -11,7 +11,7 @@ on named volumes.
 ### 🖥️ [OpenCode Server](app/)
 
 The single `opencode-stack-app` service on the published upstream image
-`ghcr.io/anomalyco/opencode:v2.2.5` with a thin `dockerfile_inline` FROM-layer
+`ghcr.io/anomalyco/opencode:2.2.5` with a thin `dockerfile_inline` FROM-layer
 (XDG roots, config dir, serve-flag entrypoint), with forwarding /
 letsencrypt / step-ca environments behind the collection's nginx-proxy
 stacks.

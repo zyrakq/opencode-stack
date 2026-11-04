@@ -13,7 +13,7 @@ Inventory from the upstream clone at tag `v2.2.5`:
 
 | Part | Upstream evidence | Image source |
 |------|------------------|--------------|
-| `opencode-server` — v2 API + web UI + agent sessions (`opencode serve`) | `packages/cli/src/commands/handlers/serve.ts`, `packages/server/`, web UI `packages/app` is bundled and served by the server ("Start the v2 API and web server") | published: `ghcr.io/anomalyco/opencode:v2.2.5` (alpine + prebuilt bun binary, multi-arch, `packages/cli/Dockerfile`, `.github/release/publish-docker.sh`) |
+| `opencode-server` — v2 API + web UI + agent sessions (`opencode serve`) | `packages/cli/src/commands/handlers/serve.ts`, `packages/server/`, web UI `packages/app` is bundled and served by the server ("Start the v2 API and web server") | published: `ghcr.io/anomalyco/opencode:2.2.5` (alpine + prebuilt bun binary, multi-arch, `packages/cli/Dockerfile`, `.github/release/publish-docker.sh`) |
 
 Not separate parts (bundled or alternatives, no compose service):
 
@@ -61,7 +61,7 @@ dirs must exist under container paths (provisioned volume). Credentials:
 | `opencode-stack-data` volume (server state: SQLite, auth) | core | server-managed persistent state, without it every restart loses projects/sessions/config |
 | `opencode-stack-projects` volume (project trees under a fixed container path) | core | sessions resolve project directories from the server filesystem (serve has no project arg) — the base ships the volume the gate provisions a throwaway project into |
 | Provider model keys (env fragment into the app) | core (gate-enabling) | a session needs a working model; credentials are a gate prerequisite per stack-analysis rule 9 — no menu confirmation |
-| Version/config layer via `dockerfile_inline` over `${IMAGE:-ghcr.io/anomalyco/opencode:v2.2.5}` | core | published upstream image is the base; a thin FROM-layer carries config/defaults without a source build |
+| Version/config layer via `dockerfile_inline` over `${IMAGE:-ghcr.io/anomalyco/opencode:2.2.5}` | core | published upstream image is the base; a thin FROM-layer carries config/defaults without a source build |
 
 Mandatory infra attempts (stack-analysis rule 4) — all REFUSED with
 reasons, recorded here as required, never silently dropped:

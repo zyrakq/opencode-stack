@@ -8,11 +8,11 @@ x-logging: &default-logging
 services:
   opencode-stack-app:
     container_name: opencode-stack-app
-    image: ${IMAGE:-ghcr.io/anomalyco/opencode:v2.2.5}
+    image: ${IMAGE:-ghcr.io/anomalyco/opencode:2.2.5}
     build:
       context: .
       dockerfile_inline: |
-        FROM ${IMAGE:-ghcr.io/anomalyco/opencode:v2.2.5}
+        FROM ${IMAGE:-ghcr.io/anomalyco/opencode:2.2.5}
         # Pin all XDG roots + the config dir onto the persistent data volume.
         # Upstream resolves them via packages/util/src/global-roots.ts and
         # honors OPENCODE_CONFIG_DIR (packages/cli/src/server-process.ts).
@@ -43,7 +43,7 @@ services:
       - opencode-stack-data:/data
       - opencode-stack-projects:/projects
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null \"http://127.0.0.1:$${OPENCODE_SERVE_PORT:-4096}/openapi.json?auth_token=$$OPENCODE_SERVER_PASSWORD\" || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null --header \"Authorization: Basic $$(echo -n opencode:$${OPENCODE_SERVER_PASSWORD} | base64)\" \"http://127.0.0.1:$${OPENCODE_SERVE_PORT:-4096}/openapi.json\" || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12
