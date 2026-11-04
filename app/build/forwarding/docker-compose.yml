@@ -1,0 +1,141 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: ${LOG_MAX_SIZE:-10m}
+    max-file: ${LOG_MAX_FILE:-3}
+    compress: ${LOG_COMPRESS:-true}
+# plugins extension: inert by default. It activates ONLY when a `plugins/`
+# folder exists next to this docker-compose.yml (git-ignored, absent by
+# default): copy the ready-made scripts from app/plugins/ (and/or your own
+# install-*.sh) into it, set the PLUGINS_* toggles in .env, and rebuild the
+# image. The toggles are consumed here (compose interpolates
+# dockerfile_inline at config time) and baked as ENV so the install scripts
+# see them. Install scripts drop marker files in /opt/plugins/.installed
+# (content = literal plugin config entry); the BASE entrypoint reads them
+# and exports OPENCODE_CONFIG_CONTENT={"plugins":[...]} — no runtime writes
+# to the persistent config volume /data/config. This build mapping fully
+# replaces the base dockerfile_inline (scalar override in the sb merger)
+# and replicates the base layer (XDG roots, entrypoint) on top.
+services:
+  opencode-stack-app:
+    container_name: opencode-stack-app
+    image: ${IMAGE:-ghcr.io/anomalyco/opencode:2.2.5}
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM ${IMAGE:-ghcr.io/anomalyco/opencode:2.2.5}
+        # Pin all XDG roots + the config dir onto the persistent data volume
+        # (same as the base layer).
+        ENV XDG_DATA_HOME=/data \
+            XDG_STATE_HOME=/data/state \
+            XDG_CACHE_HOME=/data/cache \
+            OPENCODE_CONFIG_DIR=/data/config
+        # Plugin toggles, baked at build time (empty = disabled).
+        ENV PLUGINS_MICODE=${PLUGINS_MICODE:-} \
+            PLUGINS_DCP=${PLUGINS_DCP:-} \
+            PLUGINS_RTK=${PLUGINS_RTK:-} \
+            PLUGINS_HEADROOM=${PLUGINS_HEADROOM:-}
+        RUN mkdir -p /data/opencode /data/state /data/cache /data/config /projects
+        COPY entrypoint.sh /entrypoint.sh
+        # entrypoint.sh is always present in the build dir (sb copies it from
+        # the base component); plugins*/ matches the optional sibling folder —
+        # absence is tolerated because the COPY has another matching source.
+        COPY entrypoint.sh plugins* /opt/plugins-build/
+        RUN chmod +x /entrypoint.sh \
+          && if [ -d /opt/plugins-build/plugins ]; then \
+               for s in /opt/plugins-build/plugins/install-*.sh; do \
+                 [ -f "$$s" ] || continue; \
+                 sh "$$s"; \
+               done; \
+             fi \
+          && rm -rf /opt/plugins-build
+        ENTRYPOINT ["/entrypoint.sh"]
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      # Required: basic-auth password (user "opencode") for the web UI + API.
+      OPENCODE_SERVER_PASSWORD: ${OPENCODE_SERVER_PASSWORD:?}
+      # Serve flags consumed by the baked entrypoint wrapper (upstream serve
+      # accepts only --hostname/--port/--cors flags, no env equivalents).
+      OPENCODE_SERVE_HOSTNAME: ${OPENCODE_SERVE_HOSTNAME:-0.0.0.0}
+      OPENCODE_SERVE_PORT: ${OPENCODE_SERVE_PORT:-4096}
+      # Provider model keys (optional passthrough; the gate seeds auth.json
+      # into the data volume instead). CORS origin is environment-dependent
+      # and is declared ONLY in the environment overlays, never here.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - opencode-stack-data:/data
+      - opencode-stack-projects:/projects
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null --header \"Authorization: Basic $$(echo -n opencode:$${OPENCODE_SERVER_PASSWORD} | base64)\" \"http://127.0.0.1:$${OPENCODE_SERVE_PORT:-4096}/openapi.json\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - opencode-stack-network
+    ports:
+      - "${OPENCODE_PUBLISH_PORT:-4096}:${OPENCODE_SERVE_PORT:-4096}"
+    depends_on:
+      opencode-stack-repo-sync:
+        condition: service_started
+  opencode-stack-repo-sync:
+    image: ${REPO_SYNC_IMAGE:-alpine/git:latest}
+    container_name: opencode-stack-repo-sync
+    restart: unless-stopped
+    user: root
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        URL="$${REPO_SYNC_URL}"
+        BRANCH="$${REPO_SYNC_BRANCH:-main}"
+        NAME="$${REPO_SYNC_DIR_NAME:-}"
+        [ -n "$$NAME" ] || NAME="$$(basename "$${URL%.git}")"
+        DEST="/projects/$$NAME"
+        if [ -n "$${REPO_SYNC_TOKEN:-}" ]; then
+          # token via https credential helper (not stored in the URL / .git/config)
+          export GIT_ASKPASS=/tmp/askpass.sh
+          printf '#!/bin/sh\necho "$$REPO_SYNC_TOKEN"\n' > /tmp/askpass.sh
+          chmod 700 /tmp/askpass.sh
+          export GIT_USERNAME="$${REPO_SYNC_USER:-x-access-token}"
+          git config --global credential.username "$$GIT_USERNAME"
+        fi
+        if [ -n "$${REPO_SYNC_SSH_KEY:-}" ]; then
+          printf '%s\n' "$$REPO_SYNC_SSH_KEY" > /tmp/id_sync
+          chmod 600 /tmp/id_sync
+          export GIT_SSH_COMMAND="ssh -i /tmp/id_sync -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/known_hosts"
+        fi
+        git config --global --add safe.directory '*'
+        while true; do
+          if [ -d "$$DEST/.git" ]; then
+            git -C "$$DEST" fetch --prune origin "$$BRANCH" && git -C "$$DEST" merge --ff-only "origin/$$BRANCH" \
+              || echo "repo-sync: pull failed (local changes?), will retry"
+          else
+            git clone --branch "$$BRANCH" "$$URL" "$$DEST" || echo "repo-sync: clone failed, will retry"
+          fi
+          sleep "$${REPO_SYNC_INTERVAL:-300}"
+        done
+    environment:
+      - REPO_SYNC_URL=${REPO_SYNC_URL:?}
+      - REPO_SYNC_BRANCH=${REPO_SYNC_BRANCH:-main}
+      - REPO_SYNC_DIR_NAME=${REPO_SYNC_DIR_NAME:-}
+      - REPO_SYNC_TOKEN=${REPO_SYNC_TOKEN:-}
+      - REPO_SYNC_USER=${REPO_SYNC_USER:-x-access-token}
+      - REPO_SYNC_SSH_KEY=${REPO_SYNC_SSH_KEY:-}
+      - REPO_SYNC_INTERVAL=${REPO_SYNC_INTERVAL:-300}
+      - TZ=${TZ:-UTC}
+    volumes:
+      - opencode-stack-projects:/projects
+    networks:
+      - opencode-stack-network
+volumes:
+  opencode-stack-data:
+    name: opencode-stack-data
+  opencode-stack-projects:
+    name: opencode-stack-projects
+networks:
+  opencode-stack-network:
+    name: opencode-stack-network
