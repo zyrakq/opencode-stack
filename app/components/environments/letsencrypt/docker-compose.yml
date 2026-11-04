@@ -1,0 +1,18 @@
+services:
+  opencode-stack-app:
+    environment:
+      # Public origin allowed by the serve --cors flag (environment-dependent,
+      # declared only in overlays). Space-separated list for multiple origins.
+      OPENCODE_CORS_ORIGIN: https://${VIRTUAL_HOST}
+      VIRTUAL_PORT: ${OPENCODE_SERVE_PORT:-4096}
+      VIRTUAL_HOST: ${VIRTUAL_HOST}
+      VIRTUAL_PROTO: ${VIRTUAL_PROTO:-http}
+      LETSENCRYPT_HOST: ${LETSENCRYPT_HOST}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+    networks:
+      - letsencrypt-network
+
+networks:
+  letsencrypt-network:
+    name: letsencrypt-network
+    external: true
