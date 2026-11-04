@@ -61,6 +61,8 @@ server filesystem — serve takes no project argument.
 - [`components/`](components/) — Source compose components
   - [`base/`](components/base/) — Base single-service configuration
   - [`environments/`](components/environments/) — Environment-specific configurations
+  - [`extensions/`](components/extensions/) — Extension fragments
+    (`repo-sync`, `repo-local`)
 - [`build/`](build/) — Generated configurations (auto-generated, ready to deploy)
 - [`stackbuilder.toml`](stackbuilder.toml) — Build configuration for stackbuilder
 
@@ -75,10 +77,27 @@ server filesystem — serve takes no project argument.
   serve `--cors` value
 - **step-ca**: joins `step-ca-network`; same wiring with the step-ca stack
 
+### Extensions
+
+Each environment has two repo-provisioning combos (mutually exclusive —
+both own `/projects`; pick one):
+
+- **repo-sync** (`<env>-repo-sync`): sidecar (`alpine/git`) clones a git
+  repo into the `opencode-stack-projects` volume and fast-forward-pulls it
+  every `REPO_SYNC_INTERVAL` seconds. Configure via `REPO_SYNC_URL`
+  (required), `REPO_SYNC_BRANCH`, `REPO_SYNC_DIR_NAME`, `REPO_SYNC_TOKEN`
+  / `REPO_SYNC_USER` (https auth), `REPO_SYNC_SSH_KEY` (ssh URLs).
+- **repo-local** (`<env>-repo-local`): bind-mounts a host path
+  (`REPOS_PATH`, required) at `/projects` instead of the named volume —
+  use existing working copies in place. This is a deliberate exception to
+  the collection's no-bind-mount policy: the working copies live on the
+  host and must be used in place (edits visible both ways).
+
+`sb build` generates all six combo directories under `build/`.
+
 ## 🔐 Persistence
 
 - `opencode-stack-data` → `/data` (XDG data/state/cache roots + config dir;
   SQLite DB, credentials, logs)
-- `opencode-stack-projects` → `/projects` (project trees; provision repos
-  here — e.g. a throwaway git repo for the functional gate, or the
-  `repo-sync`/`repo-local` extensions later)
+- `opencode-stack-projects` → `/projects` (project trees; provisioned by
+  the `repo-sync` extension or replaced by the `repo-local` bind mount)

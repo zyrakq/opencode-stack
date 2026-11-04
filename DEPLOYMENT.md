@@ -107,14 +107,17 @@ and CORS origin (`--cors` flag value) separate from the host service.
 
 ## Extension catalog
 
-All extensions are `available` — implemented only after the extension-menu
-checkpoint, one at a time, each gated by its own stack-test stage.
+Extensions are implemented one at a time after the extension-menu
+checkpoint, each gated by its own stack-test stage. `repo-sync` and
+`repo-local` are implemented (gated on the step-ca env with repo-sync:
+clone into `opencode-stack-projects` verified, ff-pull loop verified, app
+healthy); the rest remain `available`.
 
 | Extension | Type | Status | Dependencies / notes |
 |-----------|------|--------|----------------------|
 | `model-keys` (provider model/provider API keys env) | infra | required-for-gate | one provider key is needed by the Stage A gate; implemented with the core, no menu confirmation; additional providers stay in this fragment |
-| `repo-sync` | product | available | sidecar clones upstream repos into `opencode-stack-projects` at the fixed container path (pattern precedented in the collection for project provisioning); turns the throwaway gate project into real trees |
-| `repo-local` | product | available | policy-exception bind variant of repo-sync (`${REPOS_PATH:?}`); mutually exclusive with `repo-sync` |
+| `repo-sync` | product | implemented | sidecar clones upstream repos into `opencode-stack-projects` at the fixed container path (pattern precedented in the collection for project provisioning); turns the throwaway gate project into real trees |
+| `repo-local` | product | implemented | policy-exception bind variant of repo-sync (`${REPOS_PATH:?}`); mutually exclusive with `repo-sync` |
 | `plugins` | product | available | ONE extension, per-plugin env toggles baked via the `dockerfile_inline` FROM-layer over `${IMAGE}`: `PLUGINS_MICODE` (git: `https://github.com/pjotrvv/micode.git` branch `v2-adapter` @ `2469fea`, local package `micode-v2`, deps `@opencode/plugin 2.0.21`, `micode 0.11.0`), `PLUGINS_DCP` (npm `@tarquinen/opencode-dcp`), `PLUGINS_RTK` (GitHub releases of `https://github.com/rtk-ai/rtk`, static binary — verified source), `PLUGINS_HEADROOM` (pip `headroom-ai`); all fetched from their own upstream sources, never copied from the host; toggle form `PLUGINS_MICODE=true/false/etc.` |
 | `step-ca-trust` | infra | available | needed only if the app calls another collection group by public HTTPS domain; the outbound LLM-API default call goes to third-party providers, so not mandatory in the default comb |
 | TLS environments (`forwarding` / `letsencrypt` / `step-ca`) | environment overlays | planned with the core scaffold | CORS origin (public `https://...` used with `--cors`) and public URL defaults are environment-dependent → declared ONLY in overlays, never in base |

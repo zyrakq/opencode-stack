@@ -1,0 +1,70 @@
+# repo-sync (DEFAULT repo extension): sidecar clones/pulls a git repo into the
+# named volume `opencode-stack-projects` (mounted at /projects in BOTH the app
+# and this sidecar — the base compose already provides the app-side mount, so
+# unlike vibe-kanban no app volume patch is needed here). The app runs as root
+# (upstream image default), so no ownership fixup is required after clone.
+# Mutually exclusive with repo-local (both own /projects).
+services:
+  opencode-stack-app:
+    depends_on:
+      opencode-stack-repo-sync:
+        condition: service_started
+
+  opencode-stack-repo-sync:
+    image: ${REPO_SYNC_IMAGE:-alpine/git:latest}
+    container_name: opencode-stack-repo-sync
+    restart: unless-stopped
+    user: root
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        URL="$${REPO_SYNC_URL}"
+        BRANCH="$${REPO_SYNC_BRANCH:-main}"
+        NAME="$${REPO_SYNC_DIR_NAME:-}"
+        [ -n "$$NAME" ] || NAME="$$(basename "$${URL%.git}")"
+        DEST="/projects/$$NAME"
+        if [ -n "$${REPO_SYNC_TOKEN:-}" ]; then
+          # token via https credential helper (not stored in the URL / .git/config)
+          export GIT_ASKPASS=/tmp/askpass.sh
+          printf '#!/bin/sh\necho "$$REPO_SYNC_TOKEN"\n' > /tmp/askpass.sh
+          chmod 700 /tmp/askpass.sh
+          export GIT_USERNAME="$${REPO_SYNC_USER:-x-access-token}"
+          git config --global credential.username "$$GIT_USERNAME"
+        fi
+        if [ -n "$${REPO_SYNC_SSH_KEY:-}" ]; then
+          printf '%s\n' "$$REPO_SYNC_SSH_KEY" > /tmp/id_sync
+          chmod 600 /tmp/id_sync
+          export GIT_SSH_COMMAND="ssh -i /tmp/id_sync -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/known_hosts"
+        fi
+        git config --global --add safe.directory '*'
+        while true; do
+          if [ -d "$$DEST/.git" ]; then
+            git -C "$$DEST" fetch --prune origin "$$BRANCH" && git -C "$$DEST" merge --ff-only "origin/$$BRANCH" \
+              || echo "repo-sync: pull failed (local changes?), will retry"
+          else
+            git clone --branch "$$BRANCH" "$$URL" "$$DEST" || echo "repo-sync: clone failed, will retry"
+          fi
+          sleep "$${REPO_SYNC_INTERVAL:-300}"
+        done
+    environment:
+      - REPO_SYNC_URL=${REPO_SYNC_URL:?}
+      - REPO_SYNC_BRANCH=${REPO_SYNC_BRANCH:-main}
+      - REPO_SYNC_DIR_NAME=${REPO_SYNC_DIR_NAME:-}
+      - REPO_SYNC_TOKEN=${REPO_SYNC_TOKEN:-}
+      - REPO_SYNC_USER=${REPO_SYNC_USER:-x-access-token}
+      - REPO_SYNC_SSH_KEY=${REPO_SYNC_SSH_KEY:-}
+      - REPO_SYNC_INTERVAL=${REPO_SYNC_INTERVAL:-300}
+      - TZ=${TZ:-UTC}
+    volumes:
+      - opencode-stack-projects:/projects
+    networks:
+      - opencode-stack-network
+
+volumes:
+  opencode-stack-projects:
+    name: opencode-stack-projects
+
+networks:
+  opencode-stack-network:
+    name: opencode-stack-network
