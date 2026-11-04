@@ -1,8 +1,6 @@
 services:
-  opencode-stack-app:
+  opencode:
     environment:
-      # Public origin allowed by the serve --cors flag (environment-dependent,
-      # declared only in overlays). Space-separated list for multiple origins.
       OPENCODE_CORS_ORIGIN: https://${VIRTUAL_HOST}
       VIRTUAL_PORT: ${OPENCODE_SERVE_PORT:-4096}
       VIRTUAL_HOST: ${VIRTUAL_HOST}

@@ -1,14 +1,5 @@
-# repo-local (alternative to repo-sync): bind-mounts a local host path as
-# /projects in the app, replacing the base named-volume mount.
-# POLICY EXCEPTION (stack-conventions §4, no bind mounts): deliberate. Reason:
-# the user's existing working copies live on the host filesystem and must be
-# used in place (edits visible both ways); a named volume would only hold a
-# copy. Requirement: REPOS_PATH must be readable/writable by the app container
-# user (root, upstream image default); this stack never changes host
-# permissions.
-# Mutually exclusive with repo-sync (both own /projects).
 services:
-  opencode-stack-app:
+  opencode:
     volumes: !override
       - ${REPOS_PATH:?}:/projects
       - opencode-stack-data:/data

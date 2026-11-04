@@ -1,11 +1,5 @@
-# repo-sync (DEFAULT repo extension): sidecar clones/pulls a git repo into the
-# named volume `opencode-stack-projects` (mounted at /projects in BOTH the app
-# and this sidecar — the base compose already provides the app-side mount, so
-# unlike vibe-kanban no app volume patch is needed here). The app runs as root
-# (upstream image default), so no ownership fixup is required after clone.
-# Mutually exclusive with repo-local (both own /projects).
 services:
-  opencode-stack-app:
+  opencode:
     depends_on:
       opencode-stack-repo-sync:
         condition: service_started
@@ -25,7 +19,6 @@ services:
         [ -n "$$NAME" ] || NAME="$$(basename "$${URL%.git}")"
         DEST="/projects/$$NAME"
         if [ -n "$${REPO_SYNC_TOKEN:-}" ]; then
-          # token via https credential helper (not stored in the URL / .git/config)
           export GIT_ASKPASS=/tmp/askpass.sh
           printf '#!/bin/sh\necho "$$REPO_SYNC_TOKEN"\n' > /tmp/askpass.sh
           chmod 700 /tmp/askpass.sh

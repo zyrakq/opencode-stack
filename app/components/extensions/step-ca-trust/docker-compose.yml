@@ -1,14 +1,5 @@
-# step-ca-trust extension (step-ca environment only): mounts the external
-# step-ca-data volume (certs/ subpath, read-only) and installs the step-ca
-# root CA into the container trust store before exec'ing the baked
-# /entrypoint.sh (base serve-flag wrapper; the plugins extension replaces
-# that same path, so chaining works in every combo). The upstream image runs
-# as root, so no privilege drop is needed — trust setup runs directly and
-# `exec` keeps PID1 as the app. Bun (opencode's runtime) additionally gets
-# NODE_EXTRA_CA_CERTS pointing at the source CA. Inert without the
-# step-ca-data volume: the entrypoint fails fast after STEP_CA_WAIT_TIMEOUT.
 services:
-  opencode-stack-app:
+  opencode:
     user: root
     entrypoint:
       - /bin/sh

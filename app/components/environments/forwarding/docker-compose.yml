@@ -1,4 +1,4 @@
 services:
-  opencode-stack-app:
+  opencode:
     ports:
       - "${OPENCODE_PUBLISH_PORT:-4096}:${OPENCODE_SERVE_PORT:-4096}"
