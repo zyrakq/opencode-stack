@@ -93,7 +93,14 @@ both own `/projects`; pick one):
   the collection's no-bind-mount policy: the working copies live on the
   host and must be used in place (edits visible both ways).
 
-`sb build` generates all six combo directories under `build/`.
+- **step-ca-trust**: mandatory in every step-ca combo — mounts the step-ca
+  root CA read-only, installs it into the container trust store and sets
+  `NODE_EXTRA_CA_CERTS` so outbound HTTPS to step-ca-signed services works.
+- **plugins**: installs OpenCode plugins inside the app image/volume —
+  `micode`, `dcp`, `rtk`, `headroom`, each env-toggled
+  (`PLUGINS_MICODE` / `PLUGINS_DCP` / `PLUGINS_RTK` / `PLUGINS_HEADROOM`).
+
+`sb build` generates all combo directories under `build/`.
 
 ## 🔐 Persistence
 
