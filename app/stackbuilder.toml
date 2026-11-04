@@ -6,21 +6,21 @@ skip_base_generation = true
 copy_additional_files = true
 env_file_patterns = [".env"]
 yaml_merger = "rust"
-extensions = ["repo-sync", "repo-local", "plugins"]
+extensions = ["repo-sync", "repo-local", "plugins", "step-ca-trust"]
 
 [build.combos]
 forwarding-repo-sync = ["repo-sync"]
 forwarding-repo-local = ["repo-local"]
 letsencrypt-repo-sync = ["repo-sync"]
 letsencrypt-repo-local = ["repo-local"]
-step-ca-repo-sync = ["repo-sync"]
-step-ca-repo-local = ["repo-local"]
+step-ca-repo-sync = ["step-ca-trust", "repo-sync"]
+step-ca-repo-local = ["step-ca-trust", "repo-local"]
 forwarding-repo-sync-plugins = ["repo-sync", "plugins"]
 forwarding-repo-local-plugins = ["repo-local", "plugins"]
 letsencrypt-repo-sync-plugins = ["repo-sync", "plugins"]
 letsencrypt-repo-local-plugins = ["repo-local", "plugins"]
-step-ca-repo-sync-plugins = ["repo-sync", "plugins"]
-step-ca-repo-local-plugins = ["repo-local", "plugins"]
+step-ca-repo-sync-plugins = ["step-ca-trust", "repo-sync", "plugins"]
+step-ca-repo-local-plugins = ["step-ca-trust", "repo-local", "plugins"]
 
 [build.environments]
 available = ["forwarding", "letsencrypt", "step-ca"]
@@ -42,3 +42,5 @@ combos = ["step-ca-repo-sync", "step-ca-repo-local", "step-ca-repo-sync-plugins"
 # "repo-sync" with "repo-local" in the combo.
 # plugins is additive (bakes optional plugins into the app image) and combines
 # with either repo extension: <env>-<repo>-plugins.
+# step-ca-trust is MANDATORY in every step-ca combo (the app must trust the
+# step-ca root CA); it is never listed outside the step-ca environment.

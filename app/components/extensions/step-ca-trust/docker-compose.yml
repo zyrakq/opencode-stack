@@ -1,0 +1,47 @@
+# step-ca-trust extension (step-ca environment only): mounts the external
+# step-ca-data volume (certs/ subpath, read-only) and installs the step-ca
+# root CA into the container trust store before exec'ing the baked
+# /entrypoint.sh (base serve-flag wrapper; the plugins extension replaces
+# that same path, so chaining works in every combo). The upstream image runs
+# as root, so no privilege drop is needed — trust setup runs directly and
+# `exec` keeps PID1 as the app. Bun (opencode's runtime) additionally gets
+# NODE_EXTRA_CA_CERTS pointing at the source CA. Inert without the
+# step-ca-data volume: the entrypoint fails fast after STEP_CA_WAIT_TIMEOUT.
+services:
+  opencode-stack-app:
+    user: root
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        SRC="$${STEP_CA_ROOT_CA_SRC:-/step-ca-root/root_ca.crt}"
+        DST="$${STEP_CA_ROOT_CA_FILE:-/usr/local/share/ca-certificates/step-ca-root.crt}"
+        WAIT="$${STEP_CA_WAIT_TIMEOUT:-60}"
+        i=0
+        while [ ! -s "$$SRC" ]; do
+          i=$$((i+1))
+          [ "$$i" -gt "$$WAIT" ] && { echo "step-ca-trust: $$SRC not found after $${WAIT}s" >&2; exit 1; }
+          sleep 1
+        done
+        mkdir -p "$$(dirname "$$DST")"
+        cp "$$SRC" "$$DST"
+        chmod 644 "$$DST"
+        update-ca-certificates
+        export NODE_EXTRA_CA_CERTS="$$SRC"
+        exec /entrypoint.sh
+    environment:
+      STEP_CA_ROOT_CA_SRC: ${STEP_CA_ROOT_CA_SRC:-/step-ca-root/root_ca.crt}
+      STEP_CA_ROOT_CA_FILE: ${STEP_CA_ROOT_CA_FILE:-/usr/local/share/ca-certificates/step-ca-root.crt}
+      STEP_CA_WAIT_TIMEOUT: ${STEP_CA_WAIT_TIMEOUT:-60}
+    volumes:
+      - type: volume
+        source: step-ca-data
+        target: /step-ca-root
+        read_only: true
+        volume:
+          subpath: certs
+
+volumes:
+  step-ca-data:
+    external: true
