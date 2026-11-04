@@ -10,16 +10,16 @@ on named volumes.
 
 ### 🖥️ [OpenCode Server](app/)
 
-The single `opencode-stack-app` service on the published upstream image
+The single `opencode` service on the published upstream image
 `ghcr.io/anomalyco/opencode:2.2.5` with a thin `dockerfile_inline` FROM-layer
 (XDG roots, config dir, serve-flag entrypoint), with forwarding /
 letsencrypt / step-ca environments behind the collection's nginx-proxy
-stacks. The committed [`app/plugins/`](app/plugins/) folder ships ready-made
-install scripts (micode, dcp, rtk, headroom): to bake any of them into the
-image, copy the wanted scripts into `build/<env>/plugins/` before
-`docker compose build` and set the matching toggles
-(`PLUGINS_MICODE` / `PLUGINS_DCP` / `PLUGINS_RTK` / `PLUGINS_HEADROOM`) —
-without the folder the plugins mechanism stays inert.
+stacks. Plugin support is a base feature: the committed
+[`app/components/base/plugins/`](app/components/base/plugins/) scripts
+(micode, dcp, rtk, headroom) are baked into the image, and a single
+space-separated `PLUGINS` env list selects which of them the entrypoint
+installs at container start (markers under `/data/plugins/.installed` are
+injected into the config via `OPENCODE_CONFIG_CONTENT`).
 
 ### 🌐 [Let's Encrypt Manager](modules/ssl-automation/letsencrypt-manager/)
 

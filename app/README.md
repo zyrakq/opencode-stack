@@ -61,11 +61,10 @@ server filesystem — serve takes no project argument.
 
 - [`components/`](components/) — Source compose components
   - [`base/`](components/base/) — Base single-service configuration
+    (incl. [`base/plugins/`](components/base/plugins/) install scripts)
   - [`environments/`](components/environments/) — Environment-specific configurations
   - [`extensions/`](components/extensions/) — Extension fragments
     (`repo-sync`, `repo-local`)
-- [`plugins/`](plugins/) — Ready-made plugin install scripts, copied into
-  build-dir `plugins/` folders (see Extensions below)
 - [`build/`](build/) — Generated configurations (auto-generated, ready to deploy)
 - [`stackbuilder.toml`](stackbuilder.toml) — Build configuration for stackbuilder
 
@@ -76,9 +75,19 @@ server filesystem — serve takes no project argument.
 - **forwarding**: publishes port 4096 directly to the host
   (`OPENCODE_PUBLISH_PORT`, distinct from the host service's 8000)
 - **letsencrypt**: joins `letsencrypt-network`; nginx-proxy terminates TLS
-  and routes to `opencode-stack-app:4096`; sets the public origin as the
+  and routes to `opencode:4096`; sets the public origin as the
   serve `--cors` value
 - **step-ca**: joins `step-ca-network`; same wiring with the step-ca stack
+
+### Plugins
+
+Plugin support is a base feature, not an extension: the install scripts in
+[`components/base/plugins/`](components/base/plugins/) (`micode`, `dcp`,
+`rtk`, `headroom`) are baked into the image, and a single space-separated
+`PLUGINS` env list selects which of them the entrypoint installs at
+container start (stale `/data/plugins/.installed` markers are pruned, and
+the surviving markers are injected into the config via
+`OPENCODE_CONFIG_CONTENT` unless that variable is already set).
 
 ### Extensions
 
@@ -103,16 +112,6 @@ extension menu in [`stackbuilder.toml`](stackbuilder.toml):
 - **step-ca-trust**: mandatory in every step-ca combo — mounts the step-ca
   root CA read-only, installs it into the container trust store and sets
   `NODE_EXTRA_CA_CERTS` so outbound HTTPS to step-ca-signed services works.
-- **plugins**: installs OpenCode plugins inside the app image —
-  `micode`, `dcp`, `rtk`, `headroom`, each env-toggled
-  (`PLUGINS_MICODE` / `PLUGINS_DCP` / `PLUGINS_RTK` / `PLUGINS_HEADROOM`).
-  The extension is inert without a `plugins/` folder in the build dir:
-  copy the ready-made scripts from [`plugins/`](plugins/) into
-  `build/<env>/plugins/`, set the toggles in `.env`, and
-  `docker compose build` runs every `install-*.sh` at image build time;
-  the base entrypoint injects the resulting plugin entries via
-  `OPENCODE_CONFIG_CONTENT`. ⚠️ `sb build` wipes the build-dir `plugins/`
-  folder — re-copy the scripts after every rebuild.
 
 `sb build` generates one flat directory per environment under `build/`
 (single combo per environment, no combo subdirectories).
