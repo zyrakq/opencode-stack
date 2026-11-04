@@ -4,69 +4,33 @@ x-logging: &default-logging
     max-size: ${LOG_MAX_SIZE:-10m}
     max-file: ${LOG_MAX_FILE:-3}
     compress: ${LOG_COMPRESS:-true}
-# plugins extension: inert by default. It activates ONLY when a `plugins/`
-# folder exists next to this docker-compose.yml (git-ignored, absent by
-# default): copy the ready-made scripts from app/plugins/ (and/or your own
-# install-*.sh) into it, set the PLUGINS_* toggles in .env, and rebuild the
-# image. The toggles are consumed here (compose interpolates
-# dockerfile_inline at config time) and baked as ENV so the install scripts
-# see them. Install scripts drop marker files in /opt/plugins/.installed
-# (content = literal plugin config entry); the BASE entrypoint reads them
-# and exports OPENCODE_CONFIG_CONTENT={"plugins":[...]} — no runtime writes
-# to the persistent config volume /data/config. This build mapping fully
-# replaces the base dockerfile_inline (scalar override in the sb merger)
-# and replicates the base layer (XDG roots, entrypoint) on top.
 services:
-  opencode-stack-app:
-    container_name: opencode-stack-app
+  opencode:
+    container_name: opencode
     image: ${IMAGE:-ghcr.io/anomalyco/opencode:2.2.5}
     build:
       context: .
       dockerfile_inline: |
         FROM ${IMAGE:-ghcr.io/anomalyco/opencode:2.2.5}
-        # Pin all XDG roots + the config dir onto the persistent data volume
-        # (same as the base layer).
         ENV XDG_DATA_HOME=/data \
             XDG_STATE_HOME=/data/state \
             XDG_CACHE_HOME=/data/cache \
             OPENCODE_CONFIG_DIR=/data/config
-        # Plugin toggles, baked at build time (empty = disabled).
-        ENV PLUGINS_MICODE=${PLUGINS_MICODE:-} \
-            PLUGINS_DCP=${PLUGINS_DCP:-} \
-            PLUGINS_RTK=${PLUGINS_RTK:-} \
-            PLUGINS_HEADROOM=${PLUGINS_HEADROOM:-}
-        RUN mkdir -p /data/opencode /data/state /data/cache /data/config /projects
+        RUN rm -rf /opt/plugins && mkdir -p /data/opencode /data/state /data/cache /data/config /projects
         COPY entrypoint.sh /entrypoint.sh
-        # entrypoint.sh is always present in the build dir (sb copies it from
-        # the base component); plugins*/ matches the optional sibling folder —
-        # absence is tolerated because the COPY has another matching source.
-        COPY entrypoint.sh plugins* /opt/plugins-build/
-        RUN chmod +x /entrypoint.sh \
-          && if [ -d /opt/plugins-build/plugins ]; then \
-               for s in /opt/plugins-build/plugins/install-*.sh; do \
-                 [ -f "$$s" ] || continue; \
-                 sh "$$s"; \
-               done; \
-             fi \
-          && rm -rf /opt/plugins-build
+        COPY plugins /opt/plugins
+        RUN chmod +x /entrypoint.sh /opt/plugins/*.sh
         ENTRYPOINT ["/entrypoint.sh"]
     restart: unless-stopped
     logging: *default-logging
     environment:
-      # Required: basic-auth password (user "opencode") for the web UI + API.
       OPENCODE_SERVER_PASSWORD: ${OPENCODE_SERVER_PASSWORD:?}
-      # Serve flags consumed by the baked entrypoint wrapper (upstream serve
-      # accepts only --hostname/--port/--cors flags, no env equivalents).
       OPENCODE_SERVE_HOSTNAME: ${OPENCODE_SERVE_HOSTNAME:-0.0.0.0}
       OPENCODE_SERVE_PORT: ${OPENCODE_SERVE_PORT:-4096}
-      # Provider model keys (optional passthrough; the gate seeds auth.json
-      # into the data volume instead). CORS origin is environment-dependent
-      # and is declared ONLY in the environment overlays, never here.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      # Public origin allowed by the serve --cors flag (environment-dependent,
-      # declared only in overlays). Space-separated list for multiple origins.
+      PLUGINS: ${PLUGINS:-}
       OPENCODE_CORS_ORIGIN: https://${VIRTUAL_HOST}
       VIRTUAL_PORT: ${OPENCODE_SERVE_PORT:-4096}
       VIRTUAL_HOST: ${VIRTUAL_HOST}
@@ -103,7 +67,6 @@ services:
         [ -n "$$NAME" ] || NAME="$$(basename "$${URL%.git}")"
         DEST="/projects/$$NAME"
         if [ -n "$${REPO_SYNC_TOKEN:-}" ]; then
-          # token via https credential helper (not stored in the URL / .git/config)
           export GIT_ASKPASS=/tmp/askpass.sh
           printf '#!/bin/sh\necho "$$REPO_SYNC_TOKEN"\n' > /tmp/askpass.sh
           chmod 700 /tmp/askpass.sh
