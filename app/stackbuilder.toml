@@ -6,17 +6,11 @@ extensions_dirs = ["extensions"]
 skip_base_generation = true
 copy_additional_files = true
 env_file_patterns = [".env"]
-# Documentation only (gitea idiom): the full extension menu. Combos below
-# select from it. repo-local is a swap-in ALTERNATIVE to repo-sync (both own
-# /projects — never list both): to switch, replace "repo-sync" with
-# "repo-local" in the combo and rebuild. plugins is inert without a plugins/
-# folder in the build dir (see app/plugins/README.md). step-ca-trust is
-# MANDATORY in every step-ca combo and never listed outside step-ca.
-extensions = ["repo-sync", "repo-local", "plugins", "step-ca-trust"]
+extensions = ["repo-sync", "repo-local", "step-ca-trust"]
 
 [build.combos]
-entire = ["repo-sync", "plugins"]
-entire-trust = ["repo-sync", "plugins", "step-ca-trust"]
+entire = ["repo-sync"]
+entire-trust = ["repo-sync", "step-ca-trust"]
 
 [build.environments]
 available = ["forwarding", "letsencrypt", "step-ca"]

@@ -6,39 +6,32 @@ x-logging: &default-logging
     compress: ${LOG_COMPRESS:-true}
 
 services:
-  opencode-stack-app:
-    container_name: opencode-stack-app
+  opencode:
+    container_name: opencode
     image: ${IMAGE:-ghcr.io/anomalyco/opencode:2.2.5}
     build:
       context: .
       dockerfile_inline: |
         FROM ${IMAGE:-ghcr.io/anomalyco/opencode:2.2.5}
-        # Pin all XDG roots + the config dir onto the persistent data volume.
-        # Upstream resolves them via packages/util/src/global-roots.ts and
-        # honors OPENCODE_CONFIG_DIR (packages/cli/src/server-process.ts).
         ENV XDG_DATA_HOME=/data \
             XDG_STATE_HOME=/data/state \
             XDG_CACHE_HOME=/data/cache \
             OPENCODE_CONFIG_DIR=/data/config
-        RUN mkdir -p /data/opencode /data/state /data/cache /data/config /projects
+        RUN rm -rf /opt/plugins && mkdir -p /data/opencode /data/state /data/cache /data/config /projects
         COPY entrypoint.sh /entrypoint.sh
-        RUN chmod +x /entrypoint.sh
+        COPY plugins /opt/plugins
+        RUN chmod +x /entrypoint.sh /opt/plugins/*.sh
         ENTRYPOINT ["/entrypoint.sh"]
     restart: unless-stopped
     logging: *default-logging
     environment:
-      # Required: basic-auth password (user "opencode") for the web UI + API.
       OPENCODE_SERVER_PASSWORD: ${OPENCODE_SERVER_PASSWORD:?}
-      # Serve flags consumed by the baked entrypoint wrapper (upstream serve
-      # accepts only --hostname/--port/--cors flags, no env equivalents).
       OPENCODE_SERVE_HOSTNAME: ${OPENCODE_SERVE_HOSTNAME:-0.0.0.0}
       OPENCODE_SERVE_PORT: ${OPENCODE_SERVE_PORT:-4096}
-      # Provider model keys (optional passthrough; the gate seeds auth.json
-      # into the data volume instead). CORS origin is environment-dependent
-      # and is declared ONLY in the environment overlays, never here.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      PLUGINS: ${PLUGINS:-}
     volumes:
       - opencode-stack-data:/data
       - opencode-stack-projects:/projects
