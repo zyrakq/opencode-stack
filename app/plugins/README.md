@@ -4,8 +4,8 @@ Ready-made install scripts for the `plugins` extension. They are NOT used
 from this folder directly: copy them into the build dir's `plugins/` folder
 (git-ignored, absent by default) next to `docker-compose.yml`:
 
-    mkdir -p app/build/<env>/<combo>/plugins
-    cp app/plugins/*.sh app/build/<env>/<combo>/plugins/
+    mkdir -p app/build/<env>/plugins
+    cp app/plugins/*.sh app/build/<env>/plugins/
 
 Then set the per-plugin toggles in `.env` (see the plugins extension
 `.env.example`): `PLUGINS_MICODE` / `PLUGINS_DCP` / `PLUGINS_RTK` /
