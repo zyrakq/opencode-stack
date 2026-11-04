@@ -6,7 +6,7 @@ skip_base_generation = true
 copy_additional_files = true
 env_file_patterns = [".env"]
 yaml_merger = "rust"
-extensions = ["repo-sync", "repo-local"]
+extensions = ["repo-sync", "repo-local", "plugins"]
 
 [build.combos]
 forwarding-repo-sync = ["repo-sync"]
@@ -15,22 +15,30 @@ letsencrypt-repo-sync = ["repo-sync"]
 letsencrypt-repo-local = ["repo-local"]
 step-ca-repo-sync = ["repo-sync"]
 step-ca-repo-local = ["repo-local"]
+forwarding-repo-sync-plugins = ["repo-sync", "plugins"]
+forwarding-repo-local-plugins = ["repo-local", "plugins"]
+letsencrypt-repo-sync-plugins = ["repo-sync", "plugins"]
+letsencrypt-repo-local-plugins = ["repo-local", "plugins"]
+step-ca-repo-sync-plugins = ["repo-sync", "plugins"]
+step-ca-repo-local-plugins = ["repo-local", "plugins"]
 
 [build.environments]
 available = ["forwarding", "letsencrypt", "step-ca"]
 
 [build.environments.forwarding]
 extensions = []
-combos = ["forwarding-repo-sync", "forwarding-repo-local"]
+combos = ["forwarding-repo-sync", "forwarding-repo-local", "forwarding-repo-sync-plugins", "forwarding-repo-local-plugins"]
 
 [build.environments.letsencrypt]
 extensions = []
-combos = ["letsencrypt-repo-sync", "letsencrypt-repo-local"]
+combos = ["letsencrypt-repo-sync", "letsencrypt-repo-local", "letsencrypt-repo-sync-plugins", "letsencrypt-repo-local-plugins"]
 
 [build.environments.step-ca]
 extensions = []
-combos = ["step-ca-repo-sync", "step-ca-repo-local"]
+combos = ["step-ca-repo-sync", "step-ca-repo-local", "step-ca-repo-sync-plugins", "step-ca-repo-local-plugins"]
 
 # Repo extensions (/projects): repo-sync is the DEFAULT; repo-local is the alternative.
 # Mutually exclusive (both own /projects) - never list both. To switch, replace
 # "repo-sync" with "repo-local" in the combo.
+# plugins is additive (bakes optional plugins into the app image) and combines
+# with either repo extension: <env>-<repo>-plugins.

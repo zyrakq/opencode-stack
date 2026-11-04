@@ -1,0 +1,35 @@
+# plugins extension: bakes optional OpenCode plugins into the app image at
+# BUILD time via a FROM-layer over ${IMAGE}. Toggles (any non-empty value
+# except "false" enables; empty = disabled; see .env.example):
+#   PLUGINS_MICODE / PLUGINS_DCP / PLUGINS_RTK / PLUGINS_HEADROOM
+# The toggles are consumed here (compose interpolates dockerfile_inline at
+# config time) and baked as ENV so the install scripts see them. Runtime
+# wiring is marker-file driven (see entrypoint.sh): plugin entries are
+# injected via OPENCODE_CONFIG_CONTENT (virtual config doc) and never written
+# to the persistent config volume /data/config. This build mapping fully
+# replaces the base dockerfile_inline (scalar override in the sb merger) and
+# replicates the base layer (XDG roots, entrypoint) on top.
+services:
+  opencode-stack-app:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM ${IMAGE:-ghcr.io/anomalyco/opencode:2.2.5}
+        # Pin all XDG roots + the config dir onto the persistent data volume
+        # (same as the base layer).
+        ENV XDG_DATA_HOME=/data \
+            XDG_STATE_HOME=/data/state \
+            XDG_CACHE_HOME=/data/cache \
+            OPENCODE_CONFIG_DIR=/data/config
+        # Plugin toggles, baked at build time (empty = disabled).
+        ENV PLUGINS_MICODE=${PLUGINS_MICODE:-} \
+            PLUGINS_DCP=${PLUGINS_DCP:-} \
+            PLUGINS_RTK=${PLUGINS_RTK:-} \
+            PLUGINS_HEADROOM=${PLUGINS_HEADROOM:-}
+        RUN mkdir -p /data/opencode /data/state /data/cache /data/config /projects
+        COPY entrypoint.sh /entrypoint.sh
+        COPY common.sh install-micode.sh install-dcp.sh install-rtk.sh install-headroom.sh /tmp/plugins-build/
+        RUN chmod +x /entrypoint.sh \
+          && for s in /tmp/plugins-build/install-*.sh; do sh "$$s"; done \
+          && rm -rf /tmp/plugins-build
+        ENTRYPOINT ["/entrypoint.sh"]
