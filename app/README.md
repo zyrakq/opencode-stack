@@ -14,8 +14,9 @@ project trees on named volumes. Runs parallel to the host's existing
 sb build
 ```
 
-This will create all environments in the `build/` directory based on
-[`stackbuilder.toml`](stackbuilder.toml).
+This creates one flat build directory per environment under `build/` —
+`build/forwarding/`, `build/letsencrypt/`, `build/step-ca/` — each containing
+that environment's single combo (see [`stackbuilder.toml`](stackbuilder.toml)).
 
 ### 2. Choose Your Configuration
 
@@ -26,7 +27,7 @@ cd build/forwarding/
 # For production with Let's Encrypt SSL
 cd build/letsencrypt/
 
-# For production with Step CA SSL
+# For production with Step CA SSL (entire-trust combo)
 cd build/step-ca/
 ```
 
@@ -63,6 +64,8 @@ server filesystem — serve takes no project argument.
   - [`environments/`](components/environments/) — Environment-specific configurations
   - [`extensions/`](components/extensions/) — Extension fragments
     (`repo-sync`, `repo-local`)
+- [`plugins/`](plugins/) — Ready-made plugin install scripts, copied into
+  build-dir `plugins/` folders (see Extensions below)
 - [`build/`](build/) — Generated configurations (auto-generated, ready to deploy)
 - [`stackbuilder.toml`](stackbuilder.toml) — Build configuration for stackbuilder
 
@@ -79,28 +82,40 @@ server filesystem — serve takes no project argument.
 
 ### Extensions
 
-Each environment has two repo-provisioning combos (mutually exclusive —
-both own `/projects`; pick one):
+Each environment builds exactly one combo: **entire** (`forwarding`,
+`letsencrypt`) or **entire-trust** (`step-ca`). The combo selects from the
+extension menu in [`stackbuilder.toml`](stackbuilder.toml):
 
-- **repo-sync** (`<env>-repo-sync`): sidecar (`alpine/git`) clones a git
+- **repo-sync**: sidecar (`alpine/git`) clones a git
   repo into the `opencode-stack-projects` volume and fast-forward-pulls it
   every `REPO_SYNC_INTERVAL` seconds. Configure via `REPO_SYNC_URL`
   (required), `REPO_SYNC_BRANCH`, `REPO_SYNC_DIR_NAME`, `REPO_SYNC_TOKEN`
   / `REPO_SYNC_USER` (https auth), `REPO_SYNC_SSH_KEY` (ssh URLs).
-- **repo-local** (`<env>-repo-local`): bind-mounts a host path
+- **repo-local**: swap-in alternative to repo-sync (both own `/projects` —
+  never both): bind-mounts a host path
   (`REPOS_PATH`, required) at `/projects` instead of the named volume —
-  use existing working copies in place. This is a deliberate exception to
-  the collection's no-bind-mount policy: the working copies live on the
-  host and must be used in place (edits visible both ways).
+  use existing working copies in place. To switch, replace `repo-sync`
+  with `repo-local` in the combo in `stackbuilder.toml` and rebuild. This
+  is a deliberate exception to the collection's no-bind-mount policy: the
+  working copies live on the host and must be used in place (edits visible
+  both ways).
 
 - **step-ca-trust**: mandatory in every step-ca combo — mounts the step-ca
   root CA read-only, installs it into the container trust store and sets
   `NODE_EXTRA_CA_CERTS` so outbound HTTPS to step-ca-signed services works.
-- **plugins**: installs OpenCode plugins inside the app image/volume —
+- **plugins**: installs OpenCode plugins inside the app image —
   `micode`, `dcp`, `rtk`, `headroom`, each env-toggled
   (`PLUGINS_MICODE` / `PLUGINS_DCP` / `PLUGINS_RTK` / `PLUGINS_HEADROOM`).
+  The extension is inert without a `plugins/` folder in the build dir:
+  copy the ready-made scripts from [`plugins/`](plugins/) into
+  `build/<env>/plugins/`, set the toggles in `.env`, and
+  `docker compose build` runs every `install-*.sh` at image build time;
+  the base entrypoint injects the resulting plugin entries via
+  `OPENCODE_CONFIG_CONTENT`. ⚠️ `sb build` wipes the build-dir `plugins/`
+  folder — re-copy the scripts after every rebuild.
 
-`sb build` generates all combo directories under `build/`.
+`sb build` generates one flat directory per environment under `build/`
+(single combo per environment, no combo subdirectories).
 
 ## 🔐 Persistence
 
